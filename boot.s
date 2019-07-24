@@ -144,9 +144,9 @@ FuncGetFATEntry:
     mov byte [Odd], 1
     LabelEven:
         xor dx, dx
-        push dx
         mov bx, [BPB_BytesPerSec]
         div bx ;因为得到的是FAT表项索引的字节位置，现在获取处于哪个扇区
+        push dx ; ax/bx=ax ax%bx=dx
         mov bx, 8000h ;0x08000的地址存放读取到的FAT表
         add ax, SectorNumOfFAT1Start ;FAT表1的起始扇区号
         mov cl, 2
