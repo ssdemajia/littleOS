@@ -126,43 +126,6 @@ LabelNoLoaderBin: ;没有找到目标loader.bin
     jmp $
 
 
-;=== 获取FAT表项, 输入ax表示第几个表项，读取那一项中的值
-FuncGetFATEntry:
-    push es
-    push bx
-    push ax
-    mov ax, 0
-    mov es, ax
-    pop ax
-    mov byte [Odd], 0
-    mov bx, 3
-    mul bx
-    mov bx, 2
-    div bx  ; ax*3/2
-    cmp dx, 0 ; dx中保存余数
-    jz LabelEven
-    mov byte [Odd], 1
-    LabelEven:
-        xor dx, dx
-        mov bx, [BPB_BytesPerSec]
-        div bx ;因为得到的是FAT表项索引的字节位置，现在获取处于哪个扇区
-        push dx ; ax/bx=ax ax%bx=dx
-        mov bx, 8000h ;0x08000的地址存放读取到的FAT表
-        add ax, SectorNumOfFAT1Start ;FAT表1的起始扇区号
-        mov cl, 2
-        call FuncReadOneSector ;读取两个扇区到es：bx中
-        pop dx
-        add bx, dx 
-        mov ax, [es:bx]
-        cmp byte [Odd], 1
-        jnz LabelOdd
-        shr ax, 4
-    LabelOdd:
-        and ax, 0fffh
-        pop bx
-        pop es
-        ret
-
 ;===发现目标文件
 LabelFileNameFound:
     mov ax, RootDirSectors;根目录使用了14个扇区
@@ -189,7 +152,7 @@ LabelGoOnLoadingFile:
 
     mov cl, 1
     call FuncReadOneSector
-    pop ax
+    pop ax ; Dir_FirstCluster
     call FuncGetFATEntry
     cmp ax, 0fffh ; 0fffh文件的最后一个簇
     jz LabelFileLoaded
@@ -229,6 +192,44 @@ FuncReadOneSector:
         jc LabelGoOnReading ;读完后会将cf标志位复位
         add esp, 2
         pop bp
+        ret
+
+
+;=== 获取FAT表项, 输入ax表示第几个Cluster，读取那一项中的值Cluster
+FuncGetFATEntry:
+    push es
+    push bx
+    push ax
+    mov ax, 0
+    mov es, ax
+    pop ax ; Dir_FirstCluster
+    mov byte [Odd], 0
+    mov bx, 3
+    mul bx
+    mov bx, 2
+    div bx  ; ax*3/2 == ax*1.5
+    cmp dx, 0 ; dx中保存余数
+    jz LabelEven 
+    mov byte [Odd], 1
+    LabelEven:
+        xor dx, dx
+        mov bx, [BPB_BytesPerSec]
+        div bx ;因为得到的是FAT表项索引的字节位置，现在获取处于哪个扇区
+        push dx ; ax/bx=ax ax%bx=dx
+        mov bx, 8000h ;0x08000的地址存放读取到的FAT表
+        add ax, SectorNumOfFAT1Start ;FAT表1的起始扇区号
+        mov cl, 2
+        call FuncReadOneSector ;读取两个扇区到es：bx中
+        pop dx
+        add bx, dx 
+        mov ax, [es:bx]
+        cmp byte [Odd], 1
+        jnz LabelOdd
+        shr ax, 4
+    LabelOdd:
+        and ax, 0fffh
+        pop bx
+        pop es
         ret
 
 ;=== 临时变量
